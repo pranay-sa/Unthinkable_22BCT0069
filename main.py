@@ -4,6 +4,7 @@ import json
 from dotenv import load_dotenv
 from datetime import datetime
 from typing import List, Dict, Optional
+from database import TaskPlannerDB
 import os
 
 # CRITICAL: set_page_config must be the FIRST Streamlit command
@@ -14,6 +15,7 @@ st.set_page_config(
 
 # Load environment variables after page config
 load_dotenv()
+db = TaskPlannerDB()
 
 # Initialize Groq client with error handling
 def init_groq_client():
@@ -182,7 +184,7 @@ def render_task_card(task: Dict, is_critical: bool = False):
             st.markdown(f"### {priority_icon} {task.get('title', 'Untitled Task')}")
             
             if is_critical:
-                st.markdown("** Critical Path Task**")
+                st.markdown("**critical Path Task**")
             
             st.markdown(f"*{task.get('description', 'No description')}*")
             
@@ -197,12 +199,12 @@ def render_task_card(task: Dict, is_critical: bool = False):
 
 
 def main():
-    st.title(" Smart Task Planner")
+    st.title("Smart Task Planner")
     st.markdown("Break down your goals into actionable tasks with AI-powered planning")
     
     # Check for initialization errors
     if init_error:
-        st.error(f" {init_error}")
+        st.error(f"⚠️ {init_error}")
         if "version mismatch" in init_error.lower() or "upgrade" in init_error.lower():
             st.code("pip install --upgrade groq", language="bash")
         st.info("Get your API key from: https://console.groq.com")
@@ -210,7 +212,7 @@ def main():
         return
     
     if client is None:
-        st.error(" Failed to initialize Groq client. Please check your API key.")
+        st.error("⚠️ Failed to initialize Groq client. Please check your API key.")
         return
     
     # Initialize API
@@ -231,19 +233,71 @@ def main():
             placeholder="e.g., 2 weeks, 1 month, 3 months"
         )
         
-        generate_btn = st.button(" Generate Plan", type="primary", use_container_width=True)
+        generate_btn = st.button("Generate Plan", type="primary", use_container_width=True)
+        
+        # Saved plans section in sidebar
+        st.markdown("---")
+        st.subheader("Saved Plans")
+        
+        saved_plans = db.get_all_plans()
+        if saved_plans:
+            selected_plan_id = st.selectbox(
+                "Load a previous plan:",
+                options=[None] + [p["id"] for p in saved_plans],
+                format_func=lambda x: "-- Select --" if x is None else f"ID {x}: {saved_plans[x-1]['goal'][:30]}..."
+            )
+            
+            if selected_plan_id:
+                if st.button(" Load Plan"):
+                    st.session_state['current_plan_id'] = selected_plan_id
+                    st.rerun()
+        else:
+            st.info("No saved plans yet")
         
         
-    
+    # Load plan from database if selected
+    if 'current_plan_id' in st.session_state and not generate_btn:
+        loaded_data = db.get_plan(st.session_state['current_plan_id'])
+        if loaded_data:
+            plan = loaded_data['plan']
+            st.info(f"Loaded Plan ID: {loaded_data['id']} | Created: {loaded_data['created_at'][:10]}")
+            
+            # Display the plan (reuse the existing display code)
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Total Tasks", len(plan.get("tasks", [])))
+            with col2:
+                st.metric("Estimated Duration", plan.get("total_estimated_duration", "N/A"))
+            with col3:
+                high_priority = sum(1 for t in plan.get("tasks", []) if t.get("priority") == "high")
+                st.metric("High Priority Tasks", high_priority)
+            
+            critical_path = api.analyze_critical_path(plan)
+            
+            tab1, tab2 = st.tabs(["All Tasks", "JSON View"])
+            
+            with tab1:
+                st.subheader("Task Breakdown")
+                for task in plan.get("tasks", []):
+                    render_task_card(task, task.get("id") in critical_path)
+            
+            
+           
+                
     # Main content area
     if generate_btn and goal:
         with st.spinner(" Analyzing your goal and creating a plan..."):
             plan = api.generate_plan(goal, deadline if deadline else None)
-        
+    
         if plan.get("error"):
             st.error(f"Error generating plan: {plan['error']}")
             return
         
+        # Save to database
+        plan_id = db.save_plan(goal, deadline, plan)
+        st.session_state['current_plan_id'] = plan_id
+        st.success(f"Plan saved! ID: {plan_id}")
+
         # Display plan summary
         st.success("Plan generated successfully!")
         
@@ -260,33 +314,21 @@ def main():
         critical_path = api.analyze_critical_path(plan)
         
         # Tabs for different views
-        tab1, tab2, tab3 = st.tabs(["All Tasks", "By Phase", "JSON View"])
+        tab1, tab2 = st.tabs(["All Tasks", "JSON View"])
         
         with tab1:
             st.subheader("Task Breakdown")
             for task in plan.get("tasks", []):
                 render_task_card(task, task.get("id") in critical_path)
         
-        with tab2:
-            phases = {}
-            for task in plan.get("tasks", []):
-                phase = task.get("phase", "unassigned")
-                if phase not in phases:
-                    phases[phase] = []
-                phases[phase].append(task)
-            
-            for phase, tasks in phases.items():
-                with st.expander(f"**{phase.upper()}** ({len(tasks)} tasks)", expanded=True):
-                    for task in tasks:
-                        render_task_card(task, task.get("id") in critical_path)
         
-        with tab3:
+        with tab2:
             st.json(plan)
             
             # Download button
             json_str = json.dumps(plan, indent=2)
             st.download_button(
-                label="📥 Download Plan as JSON",
+                label="Download Plan as JSON",
                 data=json_str,
                 file_name=f"task_plan_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
                 mime="application/json"
