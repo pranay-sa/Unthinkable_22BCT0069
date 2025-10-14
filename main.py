@@ -182,7 +182,7 @@ def render_task_card(task: Dict, is_critical: bool = False):
             st.markdown(f"### {priority_icon} {task.get('title', 'Untitled Task')}")
             
             if is_critical:
-                st.markdown("**🎯 Critical Path Task**")
+                st.markdown("** Critical Path Task**")
             
             st.markdown(f"*{task.get('description', 'No description')}*")
             
@@ -197,12 +197,12 @@ def render_task_card(task: Dict, is_critical: bool = False):
 
 
 def main():
-    st.title("📋 Smart Task Planner")
+    st.title(" Smart Task Planner")
     st.markdown("Break down your goals into actionable tasks with AI-powered planning")
     
     # Check for initialization errors
     if init_error:
-        st.error(f"⚠️ {init_error}")
+        st.error(f" {init_error}")
         if "version mismatch" in init_error.lower() or "upgrade" in init_error.lower():
             st.code("pip install --upgrade groq", language="bash")
         st.info("Get your API key from: https://console.groq.com")
@@ -210,7 +210,7 @@ def main():
         return
     
     if client is None:
-        st.error("❌ Failed to initialize Groq client. Please check your API key.")
+        st.error(" Failed to initialize Groq client. Please check your API key.")
         return
     
     # Initialize API
@@ -245,7 +245,7 @@ def main():
             return
         
         # Display plan summary
-        st.success("✅ Plan generated successfully!")
+        st.success("Plan generated successfully!")
         
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -260,7 +260,7 @@ def main():
         critical_path = api.analyze_critical_path(plan)
         
         # Tabs for different views
-        tab1, tab2, tab3 = st.tabs(["📋 All Tasks", "🎯 By Phase", "📊 JSON View"])
+        tab1, tab2, tab3 = st.tabs(["All Tasks", "By Phase", "JSON View"])
         
         with tab1:
             st.subheader("Task Breakdown")
@@ -293,7 +293,7 @@ def main():
             )
     
     elif generate_btn:
-        st.warning("⚠️ Please enter a goal to generate a plan.")
+        st.warning("Please enter a goal to generate a plan.")
     
     else:
         
