@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 from typing import List, Dict, Optional
 from database import TaskPlannerDB
+import requests
 import os
 
 # CRITICAL: set_page_config must be the FIRST Streamlit command
@@ -286,9 +287,27 @@ def main():
                 
     # Main content area
     if generate_btn and goal:
-        with st.spinner(" Analyzing your goal and creating a plan..."):
-            plan = api.generate_plan(goal, deadline if deadline else None)
-    
+        with st.spinner("Analyzing your goal and creating a plan via API..."):
+            try:
+                response = requests.post(
+                    "http://127.0.0.1:8000/generate-plan",
+                    json={"goal": goal, "deadline": deadline}
+                )
+
+                if response.status_code == 200:
+                    data = response.json()
+                    plan = data["plan"]
+                    plan_id = data["plan_id"]
+                    st.session_state['current_plan_id'] = plan_id
+                    st.success(f" Plan generated successfully! (ID: {plan_id})")
+                else:
+                    st.error(f" API error: {response.text}")
+                    st.stop()
+
+            except Exception as e:
+                st.error(f"Failed to contact backend: {e}")
+                st.stop()
+        
         if plan.get("error"):
             st.error(f"Error generating plan: {plan['error']}")
             return
@@ -337,19 +356,6 @@ def main():
     elif generate_btn:
         st.warning("Please enter a goal to generate a plan.")
     
-    else:
-        
-        st.markdown("### Example Goals:")
-        examples = [
-            "Launch a SaaS product in 2 weeks",
-            "Organize a wedding in 6 months",
-            "Learn machine learning in 3 months",
-            "Build a mobile app MVP in 1 month",
-            "Write and publish a book in 1 year"
-        ]
-        
-        for example in examples:
-            st.markdown(f"- {example}")
 
 
 if __name__ == "__main__":
