@@ -1,6 +1,9 @@
 Smart Task Planner
+
 Overview
 Smart Task Planner employs AI to break down complex goals into structured, manageable tasks automatically. With the use of Groq's LLaMA 3.3 model, it parses your goals and devises in-depth plans with dependencies, timelines, and priorities.
+
+<img width="849" height="600" alt="User Flow Diagram" src="https://github.com/user-attachments/assets/533d2511-e02a-4910-8b3c-0a3955fbc6ca" />
 
 
 Features
